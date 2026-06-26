@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="referrer" content="no-referrer-when-downgrade">
-    <title>Global LiveCam Hyper-Dashboard (Auto-Search Crawler)</title>
+    <title>Global LiveCam Map (Popup Video Player)</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body {
@@ -12,80 +12,73 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             display: flex; height: 100vh; overflow: hidden; background-color: #05070f; color: #e2e8f0;
         }
-        
-        /* コントロールパネル（左） */
+
+        /* 📁 左側サイドバー（登録フォーム・管理） */
         #sidebar {
             width: 320px; height: 100vh; background: #0b0f19;
             box-shadow: 4px 0 25px rgba(0,0,0,0.6); display: flex; flex-direction: column;
             z-index: 1010; border-right: 1px solid #1e293b; box-sizing: border-box; padding: 15px;
-            transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            transition: transform 0.25s ease;
         }
         #sidebar.closed { transform: translateX(-320px); position: absolute; }
         
-        h2 { margin: 0 0 5px 0; font-size: 14px; color: #38bdf8; display: flex; align-items: center; gap: 6px; letter-spacing: 0.5px; }
-        .system-status { font-size: 10px; color: #34d399; background: rgba(52, 211, 153, 0.08); padding: 5px 8px; border-radius: 4px; margin-bottom: 12px; border: 1px solid rgba(52,211,153,0.15); }
-        
-        /* 🚀 自動追加入力ボックス */
-        .search-box { display: flex; margin-bottom: 10px; gap: 4px; }
-        .search-box input {
-            flex: 1; padding: 8px 12px; border: 1px solid #1e293b; background: #1e293b; color: white;
-            border-radius: 4px; outline: none; font-size: 13px; box-sizing: border-box;
-        }
-        .search-box button {
-            padding: 8px 12px; background: #0284c7; color: white; border: none; border-radius: 4px;
-            cursor: pointer; font-size: 12px; font-weight: bold; white-space: nowrap;
-        }
-        .search-box button:hover { background: #0369a1; }
+        h2 { margin: 0 0 5px 0; font-size: 14px; color: #38bdf8; display: flex; align-items: center; gap: 6px; }
+        .system-status { font-size: 10px; color: #eab308; background: rgba(234, 179, 8, 0.08); padding: 5px 8px; border-radius: 4px; margin-bottom: 12px; border: 1px solid rgba(234,179,8,0.15); }
 
-        .tabs { display: flex; gap: 4px; margin-bottom: 10px; border-bottom: 1px solid #1e293b; padding-bottom: 6px; overflow-x: auto; }
-        .tab { padding: 4px 8px; font-size: 10px; font-weight: bold; cursor: pointer; border-radius: 4px; background: #111827; color: #94a3b8; border: 1px solid #1e293b; white-space: nowrap; }
-        .tab.active { background: #0284c7; color: white; border-color: #0284c7; }
+        /* 🛠️ 登録フォーム */
+        .form-group {
+            background: #111827; padding: 10px; border-radius: 6px; border: 1px solid #1e293b; margin-bottom: 12px;
+        }
+        .form-group label { display: block; font-size: 10px; color: #94a3b8; margin-bottom: 4px; font-weight: bold; }
+        .form-group input {
+            width: 100%; padding: 6px 10px; border: 1px solid #1e293b; background: #1e293b; color: white;
+            border-radius: 4px; outline: none; font-size: 12px; box-sizing: border-box; margin-bottom: 6px;
+        }
+        .form-submit-btn {
+            width: 100%; padding: 8px; background: #10b981; color: white; border: none; border-radius: 4px;
+            cursor: pointer; font-size: 12px; font-weight: bold; transition: 0.2s;
+        }
+        .form-submit-btn:hover { background: #059669; }
 
-        .list-header { font-size: 10px; color: #94a3b8; margin-bottom: 6px; display: flex; justify-content: space-between; font-weight: bold; }
-        .camera-list { list-style: none; padding: 0; margin: 0; overflow-y: auto; flex: 1; }
-        .camera-item { padding: 8px 10px; border-bottom: 1px solid #111827; cursor: pointer; transition: 0.15s; border-radius: 4px; margin-bottom: 2px; background: #0f172a; }
-        .camera-item:hover { background: #1e293b; border-left: 3px solid #38bdf8; }
-        .camera-title { font-size: 11px; font-weight: bold; color: #f1f5f9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .camera-meta { font-size: 9px; color: #94a3b8; margin-top: 3px; display: flex; justify-content: space-between; }
-        
-        /* 地図エリア（中央） */
+        .search-box { display: flex; gap: 4px; }
+        .search-box input { flex: 1; padding: 7px 10px; border: 1px solid #1e293b; background: #1e293b; color: white; border-radius: 4px; outline: none; font-size: 12px; }
+        .search-box button { padding: 7px 10px; background: #0284c7; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 11px; font-weight: bold; }
+
+        /* 🗺️ 地図エリア */
         #map-container { flex: 1; height: 100vh; position: relative; }
         #map { width: 100%; height: 100%; z-index: 1; background: #05070f; }
 
-        /* トグル開閉ボタン */
+        /* メニュー開閉ボタン */
         .toggle-btn {
-            position: absolute; top: 12px; z-index: 1050;
+            position: absolute; top: 12px; left: 12px; z-index: 1050;
             background: #0284c7; color: white; border: none;
             padding: 8px 12px; border-radius: 4px; cursor: pointer;
             font-size: 11px; font-weight: bold; box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-            transition: background 0.2s;
         }
-        .toggle-btn:hover { background: #0369a1; }
-        #toggle-sidebar-btn { left: 12px; }
-        #toggle-monitor-btn { right: 12px; }
 
-        /* マルチモニター（右） */
-        #monitor-panel {
-            width: 360px; height: 100vh; background: #0b0f19; border-left: 1px solid #1e293b;
-            display: flex; flex-direction: column; z-index: 1010; box-sizing: border-box; padding: 12px;
-            transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        /* 📋 下部カメラリスト */
+        .camera-list { list-style: none; padding: 0; margin: 0; overflow-y: auto; flex: 1; }
+        .camera-item { padding: 8px 10px; border-bottom: 1px solid #111827; cursor: pointer; background: #0f172a; font-size: 12px; border-radius: 4px; margin-bottom: 2px; }
+        .camera-item:hover { background: #1e293b; border-left: 3px solid #38bdf8; }
+
+        /* 📺 🌟 ピンの真上に開くプレイヤーのスタイル調整 */
+        .popup-video-container {
+            width: 260px; color: #111; font-family: sans-serif;
         }
-        #monitor-panel.closed { transform: translateX(360px); position: absolute; right: 0; }
-        
-        .panel-title { font-size: 11px; font-weight: bold; color: #94a3b8; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid #1e293b; }
-        .monitor-grid { display: grid; grid-template-rows: repeat(2, 1fr); gap: 8px; flex: 1; overflow-y: auto; }
-        .video-slot { background: #000; border: 1px dashed #334155; border-radius: 4px; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden; aspect-ratio: 16/9; }
-        .video-slot.active { border-style: solid; border-color: #38bdf8; }
-        .slot-placeholder { color: #475569; font-size: 10px; text-align: center; }
-        .video-slot iframe { position: absolute; width: 100%; height: 100%; top:0; left:0; border: none; }
-        .slot-close { position: absolute; top: 4px; right: 4px; background: rgba(0,0,0,0.8); color: #ef4444; border: none; border-radius: 50%; width: 18px; height: 18px; font-size: 10px; cursor: pointer; z-index: 10; font-weight: bold; display: flex; align-items: center; justify-content: center; }
+        .popup-video-title {
+            font-size: 13px; font-weight: bold; color: #0284c7; margin-bottom: 4px;
+        }
+        .popup-video-meta {
+            font-size: 10px; color: #666; margin-bottom: 6px; display: block;
+        }
+        .popup-video-frame {
+            width: 100%; aspect-ratio: 16/9; background: #000; border-radius: 4px; overflow: hidden; border: none; margin-bottom: 6px;
+        }
+        .popup-video-desc {
+            font-size: 11px; color: #444; line-height: 1.4; margin: 0;
+        }
 
-        /* バッジ */
-        .badge { padding: 1px 4px; font-size: 8px; color: white; border-radius: 2px; }
-        .bg-core { background: #3b82f6; }
-        .bg-searched { background: #ec4899; font-weight: bold; } /* 検索による自動追加ピン */
-
-        /* 📍 上からポトッと降ってくるバウンドアニメーション */
+        /* 地図ピンが降ってくるアニメーション */
         @keyframes dropPin {
             0% { transform: translateY(-300px); opacity: 0; }
             65% { transform: translateY(0); opacity: 1; }
@@ -101,24 +94,30 @@
 
     <div id="sidebar">
         <div style="height: 35px;"></div>
-        <h2>🌐 Search & Auto-Drop Map</h2>
-        <div class="system-status" id="cron-status">📡 検索連動型自動クローリングエンジン稼働中</div>
+        <h2>🌐 Cam Node Manager</h2>
+        <div class="system-status" id="cron-status">💡 ピンを押すとその場で動画が流れます！</div>
         
-        <div class="search-box">
-            <input type="text" id="search-input" placeholder="地名を入力 (例: 札幌、博多、ハワイ)...">
-            <button onclick="searchAndAutoDrop()">検索＆追加</button>
+        <div class="form-group">
+            <label>【自由手動登録】ピンの新規作成</label>
+            <input type="text" id="custom-name" placeholder="カメラの名前（例: 新宿南口）">
+            <input type="text" id="custom-ytid" placeholder="YouTube動画ID（例: HpdO5Kq3o7Y）">
+            <input type="text" id="custom-desc" placeholder="詳細・説明文（例: 渋滞・混雑監視）" value="手動でピンポイント作成したカスタムライブカメラ。">
+            <div style="display: flex; gap: 4px; margin-bottom: 6px;">
+                <input type="text" id="custom-lat" placeholder="緯度" style="margin:0;">
+                <input type="text" id="custom-lng" placeholder="経度" style="margin:0;">
+            </div>
+            <button type="button" class="form-submit-btn" onclick="registerUserCam()">📍 この座標でピンを登録</button>
         </div>
 
-        <div class="tabs">
-            <div class="tab active" onclick="switchCategory('all')">全件</div>
-            <div class="tab" onclick="switchCategory('初期DB')">初期マスター</div>
-            <div class="tab" onclick="switchCategory('検索追加')">✨ 検索から追加</div>
+        <div class="form-group">
+            <label>【住所・地名検索】住所から自動追加</label>
+            <div class="search-box">
+                <input type="text" id="search-input" placeholder="例: 札幌駅、博多駅前">
+                <button type="button" onclick="searchAndAutoDrop()">検索追加</button>
+            </div>
         </div>
 
-        <div class="list-header">
-            <span id="list-count">計算中...</span>
-            <span>API: Simulated</span>
-        </div>
+        <div style="font-size: 10px; color: #94a3b8; margin-bottom: 5px; font-weight: bold;">登録済みカメラ一覧:</div>
         <ul class="camera-list" id="camera-list"></ul>
     </div>
 
@@ -126,58 +125,31 @@
         <div id="map"></div>
     </div>
 
-    <button id="toggle-monitor-btn" class="toggle-btn" onclick="toggleMonitor()">📺 モニター</button>
-
-    <div id="monitor-panel">
-        <div style="height: 35px;"></div>
-        <div class="panel-title">📺 DUAL STREAM MONITOR</div>
-        <div class="monitor-grid">
-            <div class="video-slot" id="slot-0"><div class="slot-placeholder">【モニター 1】<br>「送る」で再生</div></div>
-            <div class="video-slot" id="slot-1"><div class="slot-placeholder">【モニター 2】<br>2本同時並行再生</div></div>
-        </div>
-    </div>
-
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        const map = L.map('map', { preferCanvas: true }).setView([36.0000, 138.0000], 5); 
+        // 日本中心に初期表示
+        const map = L.map('map', { preferCanvas: true }).setView([36.5000, 138.0000], 5); 
         L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
             attribution: '© OpenStreetMap contributors'
         }).addTo(map);
 
         const markerMap = new Map();
-        let currentCategory = 'all';
-        let activeSlots = [null, null];
-
-        // 💾 最初から入っているベースのデータベース
+        
+        // 💾 データベース
         const CAMERA_DATABASE = [
-            { id: 1, category: "初期DB", name: "東京・渋谷スクランブル交差点", lat: 35.6580, lng: 139.7016, info: "東京都", ytId: "HpdO5Kq3o7Y", desc: "渋谷の現在の混雑状況" },
-            { id: 2, category: "初期DB", name: "富士山・山中湖ライブカメラ", lat: 35.4243, lng: 138.8774, info: "山梨県", ytId: "NCBfG_B_j_o", desc: "富士山お天気カメラ" },
-            { id: 3, category: "初期DB", name: "ニューヨーク・タイムズスクエア", lat: 40.7580, lng: -73.9855, info: "米国", ytId: "mRe-514tGMg", desc: "マンハッタン中心部" },
-            { id: 4, category: "初期DB", name: "ロンドン・タワーブリッジ", lat: 51.5055, lng: -0.0754, info: "英国", ytId: "p6bshI68K_c", desc: "テムズ川ライブ" }
+            { id: 1, name: "東京・渋谷スクランブル交差点", lat: 35.6580, lng: 139.7016, ytId: "HpdO5Kq3o7Y", desc: "世界的に有名な渋谷交差点のリアルタイム混雑状況と街の様子を24時間監視します。" },
+            { id: 2, name: "富士山・山中湖ライブカメラ", lat: 35.4243, lng: 138.8774, ytId: "NCBfG_B_j_o", desc: "山中湖畔から富士山を臨む定点気象カメラ。現在の積雪や天候状況を一目で確認可能。" },
+            { id: 3, name: "大阪・道頓堀ひっかけ橋", lat: 34.6691, lng: 135.5013, ytId: "G3ZdfO8V6G0", desc: "ミナミの中心地、道頓堀・戎橋（えびすばし）周辺。観光客の往来や現地の賑わいが見えるストリーム。" }
         ];
 
-        // 🔍 【検索キーワードに対応するYouTube動画IDのプール】
-        // ユーザーが検索したキーワードに最適な実在のライブ配信IDを全自動でマッチングさせます
-        const YOUTUBE_STREAM_POOL = {
-            "渋谷": { ytId: "HpdO5Kq3o7Y", desc: "自動検出：東京・渋谷スクランブル交差点のリアルタイム配信" },
-            "東京": { ytId: "p7S_Z_yO-Y4", desc: "自動検出：東京駅 丸の内広場の高画質お天気ライブ" },
-            "新宿": { ytId: "k00H6U7b0eI", desc: "自動検出：新宿南口大通りの交通量監視ライブ" },
-            "大阪": { ytId: "G3ZdfO8V6G0", desc: "自動検出：大阪道頓堀・戎橋周辺のリアルタイム映像" },
-            "札幌": { ytId: "5_XyJaWb64M", desc: "自動検出：札幌大通公園・テレビ塔ライブ中継" },
-            "博多": { ytId: "mNf8M31_9fE", desc: "自動検出：福岡天神・博多駅前お天気ストリーム" },
-            "沖縄": { ytId: "w_M-9wSgA9M", desc: "自動検出：沖縄那覇・国際通り観光カメラ" },
-            "ハワイ": { ytId: "5_XyJaWb64M", desc: "自動検出：ワイキキビーチ正面リゾートライブ" },
-            "ニューヨーク": { ytId: "mRe-514tGMg", desc: "自動検出：米NYタイムズスクエア大群衆中継" },
-            "ロンドン": { ytId: "p6bshI68K_c", desc: "自動検出：英ロンドン・タワーブリッジ交通監視" }
-        };
+        // 地図クリックで緯度経度を自動セット
+        map.on('click', function(e) {
+            document.getElementById('custom-lat').value = e.latlng.lat.toFixed(4);
+            document.getElementById('custom-lng').value = e.latlng.lng.toFixed(4);
+        });
 
-        // UI開閉
         function toggleSidebar() {
             document.getElementById('sidebar').classList.toggle('closed');
-            setTimeout(() => map.invalidateSize(), 260);
-        }
-        function toggleMonitor() {
-            document.getElementById('monitor-panel').classList.toggle('closed');
             setTimeout(() => map.invalidateSize(), 260);
         }
 
@@ -186,129 +158,114 @@
             renderList();
         }
 
-        // 📍 マーカー生成
+        // 📍 🌟 【今回のコア修正】ピンの真上に動画と詳細を出すロジック
         function createMapMarker(cam, isNew) {
             const marker = L.marker([cam.lat, cam.lng]);
-            const badgeColor = cam.category === "初期DB" ? "bg-core" : "bg-searched";
             
+            // フキダシの中にプレイヤー（YouTube）と詳細テキストを完全に合体させるHTML
             const popupHTML = `
-                <div style="width:220px; color:#111; font-family:sans-serif; font-size:11px;">
-                    <span class="badge ${badgeColor}" style="margin-bottom:4px; display:inline-block; color:white;">${cam.category}</span>
-                    <strong style="color:#0284c7; font-size:12px; display:block; margin:2px 0;">${cam.name}</strong>
-                    <span>位置: ${cam.info}</span>
-                    <p style="margin:4px 0 8px 0; color:#555; line-height:1.3;">${cam.desc}</p>
-                    <button onclick="sendToMonitor('${cam.ytId}', '${cam.name}')" style="width:100%; padding:5px; background:#0284c7; color:white; border:none; border-radius:3px; font-weight:bold; cursor:pointer;">
-                        📺 右のモニターで再生
-                    </button>
+                <div class="popup-video-container">
+                    <div class="popup-video-title">${cam.name}</div>
+                    <span class="popup-video-meta">📍 座標: ${cam.lat.toFixed(3)}, ${cam.lng.toFixed(3)}</span>
+                    <iframe class="popup-video-frame" 
+                        src="https://www.youtube-nocookie.com/embed/${cam.ytId}?autoplay=1&mute=1&modestbranding=1" 
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope" 
+                        allowfullscreen>
+                    </iframe>
+                    <p class="popup-video-desc">${cam.desc}</p>
                 </div>
             `;
-            marker.bindPopup(popupHTML);
+            
+            // フキダシの横幅などをピンのサイズに最適化してバインド
+            marker.bindPopup(popupHTML, { maxWidth: 280, minWidth: 260 });
             marker.addTo(map);
 
-            // 🌟 検索から追加された場合、上空からポトッと落とす
             if (isNew && marker._icon) {
                 marker._icon.classList.add('drop-animation');
             }
             markerMap.set(cam.id, marker);
         }
 
-        // 🔍 🚀 【検索キーワードから位置＆動画を全自動抽出して降らせるメイン関数】
-        function searchAndAutoDrop() {
-            const query = document.getElementById('search-input').value.trim();
-            if (!query) {
-                alert("地名やキーワードを入力してください！");
+        // 🛠️ 自由手動登録
+        function registerUserCam() {
+            const name = document.getElementById('custom-name').value.trim();
+            const ytId = document.getElementById('custom-ytid').value.trim();
+            const desc = document.getElementById('custom-desc').value.trim();
+            const lat = parseFloat(document.getElementById('custom-lat').value);
+            const lng = parseFloat(document.getElementById('custom-lng').value);
+
+            if (!name || !ytId || isNaN(lat) || isNaN(lng)) {
+                alert("名前・YouTubeID・緯度・経度を正しく入力してください。\n※地図上を直接クリックすると緯度経度が自動入力されます！");
                 return;
             }
 
-            const statusEl = document.getElementById('cron-status');
-            statusEl.innerText = `🔍 「${query}」のライブカメラをクローリング中...`;
-            statusEl.style.color = "#38bdf8";
+            if (lat === 0 && lng === 0) { alert("座標が海のど真ん中(0,0)になっています。"); return; }
 
-            // 1. 地名から自動的に地球上の緯度経度を検索(ジオコーディング)
-            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=jp,us,gb,fr,de,kr,th`)
+            const nextId = CAMERA_DATABASE.length + 1;
+            const newRecord = { id: nextId, name: `📌 ${name}`, lat: lat, lng: lng, ytId: ytId, desc: desc };
+
+            CAMERA_DATABASE.push(newRecord);
+            createMapMarker(newRecord, true);
+            renderList();
+
+            // 登録後、すぐにそのピンへ移動してフキダシを開く
+            map.setView([lat, lng], 12);
+            setTimeout(() => {
+                const marker = markerMap.get(nextId);
+                if (marker) marker.openPopup();
+            }, 400);
+
+            // 入力欄をクリア
+            document.getElementById('custom-name').value = '';
+            document.getElementById('custom-ytid').value = '';
+        }
+
+        // 🔍 地名検索追加（海のど真ん中ガード強化）
+        function searchAndAutoDrop() {
+            const query = document.getElementById('search-input').value.trim();
+            if (!query) return;
+
+            const statusEl = document.getElementById('cron-status');
+            statusEl.innerText = `🔍 位置を特定中...`;
+
+            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`)
                 .then(res => res.json())
                 .then(data => {
                     if (data && data.length > 0) {
                         const lat = parseFloat(data[0].lat);
                         const lng = parseFloat(data[0].lon);
-                        const locationName = data[0].display_name.split(',')[0];
 
-                        // 2. キーワードプールからYouTube動画IDを紐付け（なければランダムな可用ストリームを自動生成）
-                        let matchId = "HpdO5Kq3o7Y"; // デフォルト
-                        let matchDesc = "自動検出：周辺エリアの常時接続ライブカメラストリーム";
-                        
-                        // 部分一致でプールから動画を引っ張る
-                        for (let key in YOUTUBE_STREAM_POOL) {
-                            if (query.includes(key)) {
-                                matchId = YOUTUBE_STREAM_POOL[key].ytId;
-                                matchDesc = YOUTUBE_STREAM_POOL[key].desc;
-                                break;
-                            }
+                        if (Math.abs(lat) < 0.1 && Math.abs(lng) < 0.1) {
+                            alert("適切な位置が見つからず、海のど真ん中を指したためスキップしました。");
+                            return;
                         }
 
                         const nextId = CAMERA_DATABASE.length + 1;
                         const newRecord = {
-                            id: nextId,
-                            category: "検索追加",
-                            name: `✨ 検出: ${query}周辺カメラ`,
-                            lat: lat,
-                            lng: lng,
-                            info: locationName,
-                            ytId: matchId,
-                            desc: matchDesc
+                            id: nextId, 
+                            name: `✨ ${query}`, 
+                            lat: lat, 
+                            lng: lng, 
+                            ytId: "HpdO5Kq3o7Y", 
+                            desc: `${query}周辺のライブスポット。住所検索エンジンによって自動的にマッピングされました。`
                         };
 
-                        // 3. メメインDB配列に自動マージ
                         CAMERA_DATABASE.push(newRecord);
-
-                        // 4. カメラの場所へスムーズに地図を移動
                         map.setView([lat, lng], 12);
 
-                        // 5. 👈 移動直後に空からピンを「ポトッ」と降らせる！
                         setTimeout(() => {
                             createMapMarker(newRecord, true);
                             renderList();
-                            statusEl.innerText = `✅ 「${query}」の自動マッピングが完了しました！`;
-                            statusEl.style.color = "#34d399";
-                        }, 400);
-
+                            statusEl.innerText = `✅ 追加完了！ピンを押してください。`;
+                            
+                            // 自動でフキダシを開く
+                            const marker = markerMap.get(nextId);
+                            if (marker) marker.openPopup();
+                        }, 500);
                     } else {
-                        statusEl.innerText = `❌ 「${query}」の位置情報が見つかりませんでした。`;
-                        statusEl.style.color = "#ef4444";
+                        alert("地名が見つかりませんでした。");
                     }
-                })
-                .catch(() => {
-                    statusEl.innerText = "❌ 通信エラーが発生しました。";
-                    statusEl.style.color = "#ef4444";
-                });
-        }
-
-        // モニター送信
-        function sendToMonitor(ytId, name) {
-            document.getElementById('monitor-panel').classList.remove('closed');
-            setTimeout(() => map.invalidateSize(), 260);
-
-            let slot = activeSlots.indexOf(null);
-            if (slot === -1) slot = 1;
-
-            activeSlots[slot] = ytId;
-            const el = document.getElementById(`slot-${slot}`);
-            el.innerHTML = `
-                <button class="slot-close" onclick="clearSlot(${slot})">×</button>
-                <iframe 
-                    src="https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&mute=1&modestbranding=1&rel=0" 
-                    frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope" 
-                    allowfullscreen referrerpolicy="no-referrer-when-downgrade">
-                </iframe>
-            `;
-            el.classList.add('active');
-        }
-
-        function clearSlot(idx) {
-            activeSlots[idx] = null;
-            const el = document.getElementById(`slot-${idx}`);
-            el.classList.remove('active');
-            el.innerHTML = `<div class="slot-placeholder">【モニター ${idx + 1}】<br>「送る」で再生</div>`;
+                }).catch(() => alert("通信エラーが発生しました。"));
         }
 
         // リスト描画
@@ -316,19 +273,12 @@
             const container = document.getElementById('camera-list');
             container.innerHTML = '';
 
-            const filtered = CAMERA_DATABASE.filter(cam => {
-                return (currentCategory === 'all' || cam.category === currentCategory);
-            });
-
-            document.getElementById('list-count').innerText = `登録カメラ: ${filtered.length} 件`;
-
-            filtered.forEach(cam => {
+            CAMERA_DATABASE.forEach(cam => {
                 const li = document.createElement('li');
                 li.className = 'camera-item';
-                li.innerHTML = `
-                    <div class="camera-title">${cam.name}</div>
-                    <div class="camera-meta"><span>📍 ${cam.info.substring(0, 18)}...</span></div>
-                `;
+                li.innerHTML = `<div><strong>${cam.name}</strong></div>`;
+                
+                // リストクリック時に地図が移動し、その場で動画フキダシがパッと開く
                 li.onclick = () => {
                     map.setView([cam.lat, cam.lng], 12);
                     const marker = markerMap.get(cam.id);
@@ -338,14 +288,6 @@
             });
         }
 
-        function switchCategory(cat) {
-            currentCategory = cat;
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            event.target.classList.add('active');
-            renderList();
-        }
-
-        // 起動
         initSystem();
     </script>
 </body>
