@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="no-referrer-when-downgrade">
+    <title>カスタム・ライブカメラDBマップ</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body {
+            margin: 0; padding: 0;
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', Meiryo, sans-serif;
+            display: flex; background-color: #f4f6f9;
+        }
+        #map { height: 100vh; width: 100%; z-index: 1; }
+        
+        /* 管理・追加用サイドバー */
+        #sidebar {
+            position: absolute; top: 10px; left: 10px; z-index: 1000;
+            background: rgba(255, 255, 255, 0.98); padding: 15px; border-radius: 8px;
+            box-shadow: 0 4px 25px rgba(0,0,0,0.15); width: 340px; max-height: 92vh;
+            display: flex; flex-direction: column; border-left: 5px solid #2b6cb0;
+        }
+        h3 { margin: 0 0 10px 0; color: #111; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+        h4 { margin: 15px 0 5px 0; color: #333; font-size: 13px; border-bottom: 1px solid #ddd; padding-bottom: 3px;}
+        
+        /* 検索システム */
+        .search-box { display: flex; margin-bottom: 10px; }
+        .search-box input {
+            flex: 1; padding: 8px 12px; border: 1px solid #ced4da;
+            border-radius: 4px 0 0 4px; outline: none; font-size: 14px;
+        }
+        .search-box button {
+            padding: 8px 14px; background: #2b6cb0; color: white;
+            border: none; border-radius: 0 4px 4px 0; cursor: pointer; font-size: 13px;
+        }
+
+        /* ピン追加フォーム */
+        .add-form {
+            background: #f8f9fa; padding: 10px; border-radius: 6px;
+            border: 1px solid #e2e8f0; margin-bottom: 10px;
+        }
+        .add-form input, .add-form textarea {
+            width: 93%; padding: 6px 8px; margin-bottom: 6px;
+            border: 1px solid #cbd5e0; border-radius: 4px; font-size: 12px; outline: none;
+        }
+        .add-form button {
+            width: 100%; padding: 8px; background: #e53e3e; color: white;
+            border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;
+        }
+        .add-form button:hover { background: #c53030; }
+
+        /* カテゴリフィルタータブ */
+        .tabs { display: flex; gap: 4px; margin-bottom: 10px; border-bottom: 1px solid #dee2e6; padding-bottom: 5px; }
+        .tab {
+            padding: 6px 10px; font-size: 11px; font-weight: bold; cursor: pointer;
+            border: 1px solid #dee2e6; border-radius: 4px; background: #f8f9fa; color: #495057;
+        }
+        .tab.active { background: #2b6cb0; color: white; border-color: #2b6cb0; }
+
+        /* DBレコード一覧 */
+        .list-header { font-size: 11px; color: #6c757d; margin-bottom: 5px; font-weight: bold; display: flex; justify-content: space-between; }
+        .camera-list { list-style: none; padding: 0; margin: 0; overflow-y: auto; flex: 1; border-top: 1px solid #eee; }
+        .camera-item {
+            padding: 10px; border-bottom: 1px solid #edf2f7; cursor: pointer;
+            transition: all 0.2s; border-radius: 4px; margin-top: 2px;
+        }
+        .camera-item:hover { background: #e8f4fd; }
+        .camera-name { font-size: 13px; font-weight: bold; color: #2d3748; display: flex; align-items: center; gap: 4px; }
+        .camera-meta { font-size: 11px; color: #718096; margin-top: 4px; display: flex; justify-content: space-between; }
+        
+        /* 種別バッジ */
+        .badge { display: inline-block; padding: 2px 6px; font-size: 10px; color: white; border-radius: 3px; font-weight: normal; }
+        .bg-urban { background: #3182ce; }
+        .bg-nature { background: #38a169; }
+        .bg-custom { background: #e53e3e; } /* 自作ピン用 */
+
+        /* 動画プレイヤーコンテナ */
+        .video-container {
+            position: relative; width: 100%; padding-top: 56.25%;
+            margin-top: 8px; background: #000; border-radius: 6px; overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .video-container iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; }
+        
+        /* ポップアップデザイン */
+        .popup-card { width: 270px; font-family: sans-serif; }
+        .popup-title { font-weight: bold; font-size: 14px; color: #1a202c; margin-bottom: 2px; }
+        .popup-desc { font-size: 11px; color: #4a5568; line-height: 1.4; margin-bottom: 6px; }
+
+        /* 📍 アニメーション用のCSS（上から降ってくる演出） */
+        @keyframes dropMarker {
+            0% { transform: translateY(-200px); opacity: 0; }
+            60% { transform: translateY(0); opacity: 1; }
+            80% { transform: translateY(-15px); }
+            100% { transform: translateY(0); }
+        }
+        .drop-animation {
+            animation: dropMarker 0.6s ease-out forwards;
+            transform-origin: bottom center;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar">
+        <h3>📂 ライブカメラ Hybrid DB</h3>
+        
+        <h4>📌 マイカメラ（自作ピン）を追加</h4>
+        <div class="add-form">
+            <input type="text" id="new-name" placeholder="カメラの名前（例: 自宅の窓辺など）">
+            <input type="text" id="new-ytid" placeholder="YouTube動画ID (例: HpdO5Kq3o7Y)">
+            <input type="text" id="new-location" placeholder="設置場所の住所や地名 (例: 仙台駅)">
+            <textarea id="new-desc" rows="2" placeholder="カメラの説明（省略可）"></textarea>
+            <button onclick="addNewCameraRecord()">IDピンを追加する</button>
+        </div>
+
+        <h4>🔍 データベース検索</h4>
+        <div class="search-box">
+            <input type="text" id="search-input" placeholder="カメラ名・地域・キーワード..." oninput="filterDB()">
+            <button onclick="searchMapLocation()">地図移動</button>
+        </div>
+
+        <div class="tabs">
+            <div class="tab active" onclick="switchCategory('all')">すべて</div>
+            <div class="tab" onclick="switchCategory('都市')">主要都市</div>
+            <div class="tab" onclick="switchCategory('自然')">自然・観光</div>
+            <div class="tab" onclick="switchCategory('カスタム')">マイカメラ</div>
+        </div>
+
+        <div class="list-header">
+            <span id="list-count">読み込み中...</span>
+            <span>仕様: フルリファラー送信</span>
+        </div>
+        <ul class="camera-list" id="camera-list">
+            </ul>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // マップ初期化
+        const map = L.map('map').setView([35.6895, 139.6917], 10); // 東京中心に初期化
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        const markerMap = new Map();
+        let currentCategory = 'all';
+
+        // 💾 固定データベース（初期マスターデータ）
+        const CAMERA_DATABASE = [
+            { id: 1, category: "都市", name: "渋谷スクランブル交差点", lat: 35.6580, lng: 139.7016, pref: "東京都", ytId: "HpdO5Kq3o7Y", desc: "世界一有名な交差点。現在の歩行者の混雑状況がわかります。" },
+            { id: 2, category: "都市", name: "東京駅・丸の内駅前広場", lat: 35.6812, lng: 139.7671, pref: "東京都", ytId: "p7S_Z_yO-Y4", desc: "美しいレンガ造りの東京駅舎とお天気状況です。" },
+            { id: 3, category: "都市", name: "新宿駅・南口交差点", lat: 35.6897, lng: 139.7004, pref: "東京都", ytId: "k00H6U7b0eI", desc: "新宿駅周辺の現在の様子とビル群のお天気カメラ。" },
+            { id: 4, category: "都市", name: "大阪・道頓堀 戎橋", lat: 34.6691, lng: 135.5013, pref: "大阪府", ytId: "G3ZdfO8V6G0", desc: "ミナミの中心地、道頓堀川とグリコ看板付近の様子です。" },
+            { id: 5, category: "自然", name: "富士山・山中湖みさき", lat: 35.4243, lng: 138.8774, pref: "山梨県", ytId: "NCBfG_B_j_o", desc: "山中湖の湖面越しに富士山を望む、非常に綺麗な定点映像。" }
+        ];
+
+        function getBadgeStyle(cat) {
+            if (cat === '都市') return 'bg-urban';
+            if (cat === '自然') return 'bg-nature';
+            return 'bg-custom';
+        }
+
+        // ----------------------------------------------------
+        // ⚙️ システム初期化
+        // ----------------------------------------------------
+        function initMapSystem() {
+            CAMERA_DATABASE.forEach(cam => {
+                createMapMarker(cam, false); // 初期データは降らせない
+            });
+            renderDatabaseList();
+        }
+
+        // 📍 ピンを地図上に生成する共通関数
+        function createMapMarker(cam, shouldDrop) {
+            // 通常のピンアイコンをベースに生成
+            const marker = L.marker([cam.lat, cam.lng]);
+
+            // ポップアップHTML（対策コード全適用）
+            const popupHTML = `
+                <div class="popup-card">
+                    <span class="badge ${getBadgeStyle(cam.category)}" style="margin-bottom:4px;">${cam.category}</span>
+                    <div class="popup-title">${cam.name}</div>
+                    <div style="font-size:11px; color:#4a5568; margin-bottom:4px;">📍 ${cam.pref} | ID: ${cam.id}</div>
+                    <div class="popup-desc">${cam.desc}</div>
+                    <div class="video-container">
+                        <iframe 
+                            src="https://www.youtube-nocookie.com/embed/${cam.ytId}?autoplay=1&mute=1&modestbranding=1&rel=0&playsinline=1" 
+                            title="${cam.name}"
+                            frameborder="0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                            allowfullscreen
+                            referrerpolicy="no-referrer-when-downgrade">
+                        </iframe>
+                    </div>
+                </div>`;
+            
+            marker.bindPopup(popupHTML, { maxWidth: 290, minWidth: 270 });
+            marker.addTo(map);
+
+            // 🌟 「上から降ってくる」指定がある場合、CSSアニメーションをピンに付与
+            if (shouldDrop) {
+                const element = marker._icon;
+                if(element) {
+                    element.classList.add('drop-animation');
+                }
+            }
+
+            markerMap.set(cam.id, marker);
+        }
+
+        // ----------------------------------------------------
+        // 📥 ユーザーが新しくカスタムピン（ID）を追加する関数
+        // ----------------------------------------------------
+        function addNewCameraRecord() {
+            const name = document.getElementById('new-name').value.trim();
+            const ytId = document.getElementById('new-ytid').value.trim();
+            const locationQuery = document.getElementById('new-location').value.trim();
+            const desc = document.getElementById('new-desc').value.trim() || "ユーザーが追加したカスタムカメラ";
+
+            if (!name || !ytId || !locationQuery) {
+                alert("名前、YouTubeの動画ID、設置場所（住所・駅名など）は必須です！");
+                return;
+            }
+
+            // 地名・住所から、ピンを刺すための緯度・経度（座標）を自動取得
+            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationQuery)}&countrycodes=jp`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data && data.length > 0) {
+                        const lat = parseFloat(data[0].lat);
+                        const lng = parseFloat(data[0].lon);
+                        const nextId = CAMERA_DATABASE.length + 1;
+
+                        // 1. 新しいレコードオブジェクトを生成してDB(配列)にPUSH
+                        const newRecord = {
+                            id: nextId,
+                            category: "カスタム",
+                            name: name,
+                            lat: lat,
+                            lng: lng,
+                            pref: locationQuery, // 入力された場所名をそのまま使う
+                            ytId: ytId,
+                            desc: desc
+                        };
+                        CAMERA_DATABASE.push(newRecord);
+
+                        // 2. 地図をその場所へ一気にジャンプ移動させる
+                        map.setView([lat, lng], 14);
+
+                        // 3. 移動が終わった頃（400ms後）にピンを生成。このとき「上から降ってくる(true)」にする
+                        setTimeout(() => {
+                            createMapMarker(newRecord, true);
+                            renderDatabaseList(); // 左側のリストも更新
+                        }, 400);
+
+                        // フォームの入力欄をリセット
+                        document.getElementById('new-name').value = "";
+                        document.getElementById('new-ytid').value = "";
+                        document.getElementById('new-location').value = "";
+                        document.getElementById('new-desc').value = "";
+
+                    } else {
+                        alert("入力された『設置場所』の位置を特定できませんでした。正しい住所や主要な駅名・建物名で試してください。");
+                    }
+                })
+                .catch(() => alert("座標の取得中に通信エラーが発生しました。"));
+        }
+
+        // ----------------------------------------------------
+        // 🔄 データベースリスト更新・検索処理
+        // ----------------------------------------------------
+        function renderDatabaseList() {
+            const query = document.getElementById('search-input').value.toLowerCase();
+            const listContainer = document.getElementById('camera-list');
+            listContainer.innerHTML = '';
+
+            const filtered = CAMERA_DATABASE.filter(cam => {
+                const matchCat = (currentCategory === 'all' || cam.category === currentCategory);
+                const matchKey = cam.name.toLowerCase().includes(query) || 
+                                 cam.pref.toLowerCase().includes(query) || 
+                                 cam.desc.toLowerCase().includes(query);
+                return matchCat && matchKey;
+            });
+
+            document.getElementById('list-count').innerText = `登録レコード: ${filtered.length} 件`;
+
+            filtered.forEach(cam => {
+                const li = document.createElement('li');
+                li.className = 'camera-item';
+                li.onclick = () => jumpToCamera(cam.id, cam.lat, cam.lng);
+                li.innerHTML = `
+                    <div class="camera-name">
+                        <span class="badge ${getBadgeStyle(cam.category)}">${cam.category}</span>
+                        ${cam.name}
+                    </div>
+                    <div class="camera-meta">
+                        <span>📍 ${cam.pref}</span>
+                        <span style="color:#a0aec0;">#${String(cam.id).padStart(3, '0')}</span>
+                    </div>
+                `;
+                listContainer.appendChild(li);
+            });
+        }
+
+        function filterDB() { renderDatabaseList(); }
+
+        function switchCategory(cat) {
+            currentCategory = cat;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            renderDatabaseList();
+        }
+
+        function jumpToCamera(id, lat, lng) {
+            map.setView([lat, lng], 14);
+            setTimeout(() => {
+                const marker = markerMap.get(id);
+                if (marker) marker.openPopup();
+            }, 350);
+        }
+
+        function searchMapLocation() {
+            const query = document.getElementById('search-input').value.trim();
+            if (!query) return;
+
+            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=jp`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data && data.length > 0) {
+                        map.setView([data[0].lat, data[0].lon], 12);
+                    } else {
+                        alert("地名が見つかりませんでした。");
+                    }
+                }).catch(() => alert("検索エラー"));
+        }
+
+        // 初期起動
+        initMapSystem();
+    </script>
+</body>
+</html>
